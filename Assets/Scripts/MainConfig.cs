@@ -6,15 +6,15 @@ public class MainConfig : MonoBehaviour
 {
     public static int[] BET_MULTIPLES = {1, 2, 5, 10, 20, 50, 100};
 
-    public enum SymbolType
+    public static Dictionary<string, int> SYMBOL_TYPE_MAPPING = new Dictionary<string, int>()
     {
-        Bear = 0,
-        Beetle = 1,
-        Bunny = 2,
-        Vulture = 3,
-        Eagle = 4,
-        Dog = 5,
-        Frog = 6,
-        Pig = 7,
-    }
+        {"bear", 0},
+        {"beetle", 1},
+        {"bunny", 2},
+        {"vulture", 3},
+        {"eagle", 4},
+        {"dog", 5},
+        {"frog", 6},
+        {"pig", 7}
+    };
 }

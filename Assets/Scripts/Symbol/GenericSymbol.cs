@@ -25,7 +25,7 @@ public class GenericSymbol : MonoBehaviour
     public void Start()
     {   
         // random default symbol
-        ChangeToID(2);
+        ChangeToID(0);
     }
 
     public string GetCurrentID()
@@ -91,7 +91,7 @@ public class GenericSymbol : MonoBehaviour
         if (animator != null)
         {
             animator.speed = 1;
-            animator.SetFloat("PlaybackTime", 0);
+            // animator.SetFloat("PlaybackTime", 0);
         }
         else
         {
