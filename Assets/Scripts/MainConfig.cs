@@ -17,4 +17,11 @@ public class MainConfig : MonoBehaviour
         {"frog", 6},
         {"pig", 7}
     };
+
+    public static Dictionary<string, List<int>> cheats = new Dictionary<string, List<int>>()
+    {
+        {"preset1", new List<int> { 0, 1, 2, 3, 4 }},
+        {"preset2", new List<int> { 0, 2, 2, 4, 2 }},
+    };
+
 }

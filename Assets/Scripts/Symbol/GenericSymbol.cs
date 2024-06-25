@@ -22,12 +22,6 @@ public class GenericSymbol : MonoBehaviour
     // TODO: move this to subclass
     public ParticleSystem explosionObject;
 
-    public void Start()
-    {   
-        // random default symbol
-        ChangeToID(0);
-    }
-
     public string GetCurrentID()
     {
         return currentID;
@@ -40,7 +34,20 @@ public class GenericSymbol : MonoBehaviour
 
     public void moveAroundDeleteMe()
     {
+
+        Debug.Log("Before movement: symbolObject position = " + symbolObject.transform.position);
+        Debug.Log("Before movement: transform position = " + transform.position);
         symbolObject.transform.position = new Vector3(Random.Range(-10f, 10f), Random.Range(-10f, 10f), 10);
+
+        transform.position = new Vector3(Random.Range(-10f, 10f), Random.Range(-10f, 10f), 10);
+
+        Debug.Log("After movement: symbolObject position = " + symbolObject.transform.position);
+        Debug.Log("After movement: transform position = " + transform.position);
+    }
+
+    public void moveBack()
+    {
+        symbolObject.transform.position = new Vector3(0, 0, 500);
     }
 
     public void ChangeToID(int value)
@@ -61,10 +68,15 @@ public class GenericSymbol : MonoBehaviour
         explosionObject.Play();
     }
 
+    public void StopExplosion()
+    {
+        explosionObject.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+    }
+
     public void StopAllAnims()
     {
         // clear explosion
-        explosionObject.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        StopExplosion();
         // reset Z-pos
 
         // stop win anim
