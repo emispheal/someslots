@@ -28,7 +28,7 @@ public class MainConfig : MonoBehaviour
         {"wild win", new List<int> { 15, 8, 7, 0, 0 }}
     };
 
-    public static string SERVER_URL = "http://54.66.230.103/api/spin";
+    public static string SERVER_URL = "https://ec2.spheal.xyz/api/spin";
 
     public static int ROWS = 5;
     public static int COLS = 5;
