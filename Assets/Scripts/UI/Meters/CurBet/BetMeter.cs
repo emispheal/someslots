@@ -8,6 +8,8 @@ public class BetMeter : GenericMeter
     int[] betMultiples = MainConfig.BET_MULTIPLES;
     int curBetMultiIdx = 0;
 
+    public MainController mainController;
+
     public override void Start()
     {
         currentValue = betMultiples[curBetMultiIdx];
@@ -20,7 +22,7 @@ public class BetMeter : GenericMeter
         curBetMultiIdx = Mathf.Clamp(curBetMultiIdx + 1, 0, betMultiples.Length - 1);
         currentValue = betMultiples[curBetMultiIdx];
         SetString();
-        // Debug.Log("HASIDASD");
+        mainController.SyncBet(currentValue);    
     }
 
     public void DecrementBet()
@@ -28,6 +30,7 @@ public class BetMeter : GenericMeter
         curBetMultiIdx = Mathf.Clamp(curBetMultiIdx - 1, 0, betMultiples.Length - 1);
         currentValue = betMultiples[curBetMultiIdx];
         SetString();
+        mainController.SyncBet(currentValue);
     }
 
     public override void SetString()

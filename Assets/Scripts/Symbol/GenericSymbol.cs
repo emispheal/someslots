@@ -7,50 +7,18 @@ using UnityEngine;
 // Extend this to implement animations and game-specific interactions.
 public class GenericSymbol : MonoBehaviour
 {
-    // the symbol ID e.g. A, K, Q, J
-    string currentID = "IDK";
-
     // the symbol main object
     public GameObject symbolObject;
 
     // the quad for the texture
     public GameObject textureObject;
 
-    // current set of sprite animations
-    public Sprite[] currentTextures;
-
-    // TODO: move this to subclass
-    public ParticleSystem explosionObject;
-
-    public string GetCurrentID()
+    public void HideFromView()
     {
-        return currentID;
+        symbolObject.transform.position = new Vector3(0, 0, 999);
     }
 
-    public void SetCurrentID(string newID)
-    {
-        currentID = newID;
-    }
-
-    public void moveAroundDeleteMe()
-    {
-
-        Debug.Log("Before movement: symbolObject position = " + symbolObject.transform.position);
-        Debug.Log("Before movement: transform position = " + transform.position);
-        symbolObject.transform.position = new Vector3(Random.Range(-10f, 10f), Random.Range(-10f, 10f), 10);
-
-        transform.position = new Vector3(Random.Range(-10f, 10f), Random.Range(-10f, 10f), 10);
-
-        Debug.Log("After movement: symbolObject position = " + symbolObject.transform.position);
-        Debug.Log("After movement: transform position = " + transform.position);
-    }
-
-    public void moveBack()
-    {
-        symbolObject.transform.position = new Vector3(0, 0, 500);
-    }
-
-    public void ChangeToID(int value)
+    public void SetTextureID(int value)
     {
         Animator animator = textureObject.GetComponent<Animator>();
         if (animator != null)
@@ -63,27 +31,15 @@ public class GenericSymbol : MonoBehaviour
         }
     }
 
-    public void PlayExplosion()
-    {
-        explosionObject.Play();
-    }
+    
 
-    public void StopExplosion()
+    public virtual void StopAllAnims()
     {
-        explosionObject.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-    }
-
-    public void StopAllAnims()
-    {
-        // clear explosion
-        StopExplosion();
-        // reset Z-pos
-
         // stop win anim
-        stopTextureAnim();
+        StopTextureAnim();
     }
 
-    public void stopTextureAnim()
+    public void StopTextureAnim()
     {
         Animator animator = textureObject.GetComponent<Animator>();
         if (animator != null)
@@ -97,7 +53,7 @@ public class GenericSymbol : MonoBehaviour
         }
     }
 
-    public void startTextureAnim()
+    public void StartTextureAnim()
     {
         Animator animator = textureObject.GetComponent<Animator>();
         if (animator != null)

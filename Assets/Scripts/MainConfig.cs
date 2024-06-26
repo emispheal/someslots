@@ -18,10 +18,23 @@ public class MainConfig : MonoBehaviour
         {"pig", 7}
     };
 
-    public static Dictionary<string, List<int>> cheats = new Dictionary<string, List<int>>()
+    public static Dictionary<string, List<int>> CHEATS = new Dictionary<string, List<int>>()
     {
-        {"preset1", new List<int> { 0, 1, 2, 3, 4 }},
-        {"preset2", new List<int> { 0, 2, 2, 4, 2 }},
+        {"small win", new List<int> { 0, 1, 2, 3, 4 }},
+        {"other win", new List<int> { 0, 2, 2, 4, 2 }},
+        {"long cascade", new List<int> { 17, 23, 11, 13, 23 }},
+        {"respin trigger", new List<int> { 26, 12, 33, 30, 1 }},
+        {"respin trigger2", new List<int> { 34, 30, 13, 19, 20 }},
+        {"wild win", new List<int> { 15, 8, 7, 0, 0 }}
     };
+
+    public static string SERVER_URL = "http://54.66.230.103/api/spin";
+
+    public static int ROWS = 5;
+    public static int COLS = 5;
+
+    public static string SYMBOL_OBJECT = "SymbolObject";
+
+    public static string CUR_PAY_STR = "Current Pay: $";
 
 }

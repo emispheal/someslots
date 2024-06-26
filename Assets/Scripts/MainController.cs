@@ -18,6 +18,7 @@ using DG.Tweening;
 public class MainController : MonoBehaviour
 {
 
+    // NOTE: needs to be in snake case to automatically convert from json
     public class Response
     {
         public string message { get; set; }
@@ -38,21 +39,31 @@ public class MainController : MonoBehaviour
 
     protected GameObject[,] symbolInstanceGrid;
 
-    public Sequence currentSeq;
+    protected Sequence currentSeq;
 
-    public TextMeshProUGUI testTextDeleteMe;
+    [SerializeField] protected TextMeshProUGUI serverStatusText;
 
     [SerializeField] private TMP_Dropdown dropdown;
 
-    public GameObject symbolPrefab;
-    public int rows = 5;
-    public int cols = 5;
-    public float XOffset;
-    public float YOffset;
-    public float gridSpacing;
-    public float gridZ;
+    [SerializeField] protected TextMeshProUGUI curGamePay;
+    private int curPay;
+
+    private int curBet;
+
+    [SerializeField] protected GameObject symbolPrefab;
+    [SerializeField] protected int rows = MainConfig.ROWS;
+    [SerializeField] protected int cols = MainConfig.COLS;
+    [SerializeField] protected float XOffset;
+    [SerializeField] protected float YOffset;
+    [SerializeField] protected float gridSpacing;
+    [SerializeField] protected float gridZ;
+
+    [SerializeField] protected float animDur = 1.0f;
+    [SerializeField] protected float delayDur = 1f;
+    [SerializeField] protected float explosionDur = 1.0f;
 
     private bool skippable = false;
+    private bool inPlay = false;
 
     void Start()
     {
@@ -64,52 +75,35 @@ public class MainController : MonoBehaviour
             for (int row_idx = 0; row_idx < rows; row_idx++)
             {
                 GameObject symbolAnchor = Instantiate(symbolPrefab);
-                symbolAnchor.transform.position = getIdleWorldPos(col_idx, row_idx);
-                symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().StopAllAnims();
+                symbolAnchor.transform.position = GetIdleWorldPos(col_idx, row_idx);
+                symbolAnchor.transform.Find(MainConfig.SYMBOL_OBJECT).GetComponent<CascadeSymbol>().StopAllAnims();
 
                 symbolInstanceGrid[col_idx, row_idx] = symbolAnchor;
             }
         }
 
         // iterate through cheats dict to get keys and add as dropdown options
-        Dictionary<string, List<int>> cheats = MainConfig.cheats;        
+        Dictionary<string, List<int>> cheats = MainConfig.CHEATS;        
         foreach (string cheatname in cheats.Keys)
         {
             dropdown.options.Add(new TMP_Dropdown.OptionData(cheatname));
         }
+
+        ResetPay();
+
+        // initial bet
+        SyncBet(MainConfig.BET_MULTIPLES[0]);
     }
 
-    public IEnumerator GetRequest(string uri)
+    // Starts a request for a spin sequence when the spin button is clicked
+    public void OnSpinClick()
     {
-        using (UnityWebRequest webRequest = UnityWebRequest.Get(uri))
-        {
-            yield return webRequest.SendWebRequest();
-            switch (webRequest.result)
-            {
-                case UnityWebRequest.Result.ConnectionError:
-                case UnityWebRequest.Result.DataProcessingError:
-                    Debug.LogError("Error: " + webRequest.error);
-                    testTextDeleteMe.text = "Unknown error occurred: " + webRequest.error;
-                    break;
-                case UnityWebRequest.Result.ProtocolError:
-                    Debug.LogError("HTTP Error: " + webRequest.error);
-                    testTextDeleteMe.text = "Unknown error occurred: " + webRequest.error;
-                    break;
-                case UnityWebRequest.Result.Success:
-                    //Debug.Log("Received: " + webRequest.downloadHandler.text);
-                    Response response = JsonConvert.DeserializeObject<Response>(webRequest.downloadHandler.text);
-                    testTextDeleteMe.text = "good";
-                    StartCoroutine(playSequence(response));
-                    break;
-                // default
-                default:
-                    Debug.LogError("Unknown error occurred: " + webRequest.error);
-                    testTextDeleteMe.text = "Unknown error occurred: " + webRequest.error;
-                    break;
-            }
-        }
+        // if (inPlay == false) StartCoroutine(PostRequest("http://127.0.0.1:5000/api/spin"));
+        if (inPlay == false) StartCoroutine(PostRequest(MainConfig.SERVER_URL));
     }
 
+    // Sends a POST request to the server and handles the response
+    // plays game sequence if the request was successful
     public IEnumerator PostRequest(string uri)
     {
         Dictionary<string, List<int>> body = new Dictionary<string, List<int>>();
@@ -117,7 +111,7 @@ public class MainController : MonoBehaviour
         List<int> preset;
         try
         {
-            preset = MainConfig.cheats[cheatname];
+            preset = MainConfig.CHEATS[cheatname];
         }
         catch
         {
@@ -131,81 +125,68 @@ public class MainController : MonoBehaviour
             webRequest.SetRequestHeader("Content-Type", "application/json");
             webRequest.method = "POST";
             yield return webRequest.SendWebRequest();
+
             switch (webRequest.result)
             {
                 case UnityWebRequest.Result.ConnectionError:
                 case UnityWebRequest.Result.DataProcessingError:
                     Debug.LogError("Error: " + webRequest.error);
-                    testTextDeleteMe.text = "Unknown error occurred: " + webRequest.error;
+                    serverStatusText.text = "Server error occurred: " + webRequest.error;
                     break;
+
                 case UnityWebRequest.Result.ProtocolError:
                     Debug.LogError("HTTP Error: " + webRequest.error);
-                    testTextDeleteMe.text = "Unknown error occurred: " + webRequest.error;
+                    serverStatusText.text = "Server error occurred: " + webRequest.error;
                     break;
+
                 case UnityWebRequest.Result.Success:
                     Debug.Log("Received: " + webRequest.downloadHandler.text);
                     Response response = JsonConvert.DeserializeObject<Response>(webRequest.downloadHandler.text);
-                    testTextDeleteMe.text = "";
-                    // Debug.Log(response.message);
-                    StartCoroutine(playSequence(response));
+                    serverStatusText.text = "";
+                    StartCoroutine(PlaySequence(response));
                     break;
-                // default
+
                 default:
                     Debug.LogError("Unknown error occurred: " + webRequest.error);
-                    testTextDeleteMe.text = "Unknown error occurred: " + webRequest.error;
+                    serverStatusText.text = "Unknown error occurred: " + webRequest.error;
                     break;
             }
         }
     }
 
-    public void postClickTest()
-    {
-        // StartCoroutine(PostRequest("http://54.66.230.103/api/meow"));
-        StartCoroutine(PostRequest("http://127.0.0.1:5000/api/spin"));
-    }
-
-    public void OnSpinClick()
-    {
-        StartCoroutine(GetRequest("http://54.66.230.103/api/data"));
-    }
-
-    public IEnumerator playSequence(Response responseObject)
+    // handles the response and plays the game sequence
+    // animations and toggleables are controlled here
+    public IEnumerator PlaySequence(Response responseObject)
     {
         Response resp = responseObject;
-
-        float animDur = 1.0f;
-        float delayDur = 2f;
-        float explosionDur = 2.0f;
-
-        // TODO: refactor this into buildable pattern classful thingo
+        ResetPay();
+        inPlay = true;
 
         for (int i = 0; i < resp.slot_data.Count; i++)
         {
-            List<List<int>> cascade_positions = resp.slot_data[i].cascade_positions;
-            string cur_mode = resp.slot_data[i].cur_mode;
+            // unpacking the response
+            List<List<int>> cascadePositions = resp.slot_data[i].cascade_positions;
+            string curMode = resp.slot_data[i].cur_mode;
             List<List<string>> display = resp.slot_data[i].display;
-            string next_mode = resp.slot_data[i].next_mode;
+            string nextMode = resp.slot_data[i].next_mode;
             int pay = resp.slot_data[i].pay;
-            int rounds_left = resp.slot_data[i].rounds_left;
-            List<List<int>> scatter_win_positions = resp.slot_data[i].scatter_win_positions;
+            int roundsLeft = resp.slot_data[i].rounds_left;
+            List<List<int>> scatterWinPositions = resp.slot_data[i].scatter_win_positions;
 
-            Sequence moveSeq = DOTween.Sequence();
-
-            // setting the skippable thingo
-            currentSeq = moveSeq;
+            // setting whether this part of play is skippable and current sequence
+            Sequence settingSeq = DOTween.Sequence();
+            currentSeq = settingSeq;
             skippable = true;
 
-            if (cur_mode == "base")
+            if (curMode == "base")
             {
+                // current mode is base, so clean out the remaining/full board and add new symbols
                 for (int col_idx = 0; col_idx < cols; col_idx++)
                 {
                     for (int row_idx = 0; row_idx < rows; row_idx++)
                     {
-                        // have to take a snapshot of the current idxs, can't use reference
-                        int currentColIdx = col_idx;
-                        int currentRowIdx = row_idx;
-
-                        // get the symbol anchor
+                        // have to take a snapshot of the current idxs, can't use reference due to it being incremented
+                        int currentColIdx = col_idx, currentRowIdx = row_idx;
                         GameObject symbolAnchor = symbolInstanceGrid[currentColIdx, currentRowIdx];
 
                         Sequence subSeq = DOTween.Sequence();
@@ -213,14 +194,13 @@ public class MainController : MonoBehaviour
                         // the symbols remaining should move behind the background
                         if (symbolAnchor != null)
                         {
-                            Tween subTweenMoveBehind = symbolAnchor.transform.DOMove(symbolAnchor.transform.position + new Vector3(0, 0, 10), animDur).SetEase(Ease.InOutSine).OnComplete(() =>
+                            Tween subTweenMoveBehind = symbolAnchor.transform.DOMove(GetMoveBackPos(currentColIdx, currentRowIdx), animDur).SetEase(Ease.InOutSine).OnComplete(() =>
                             {
                                 // once in the background, change symbol texture
-                                string symbolName = display[currentColIdx][currentRowIdx];
-                                int id = MainConfig.SYMBOL_TYPE_MAPPING[symbolName];
-                                symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().ChangeToID(id);
+                                ChangeSymbolTexture(symbolAnchor, GetIDFromDisplay(display, currentColIdx, currentRowIdx));
+
                                 // snap it to drop point
-                                symbolAnchor.transform.position = getIdleWorldPos(currentColIdx, currentRowIdx) + new Vector3(0, 0, -15);
+                                symbolAnchor.transform.position = GetDropPointPos(currentColIdx, currentRowIdx);
                             });
                             subSeq.Join(subTweenMoveBehind);
                         }
@@ -228,28 +208,23 @@ public class MainController : MonoBehaviour
                         {
                             // make a new symbol behind background
                             symbolAnchor = Instantiate(symbolPrefab);
-                            symbolAnchor.transform.position = getIdleWorldPos(currentColIdx, currentRowIdx) + new Vector3(0, 0, 10);
+                            symbolAnchor.transform.position = GetMoveBackPos(currentColIdx, currentRowIdx);
                             symbolInstanceGrid[currentColIdx, currentRowIdx] = symbolAnchor;
-                            symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().StopAllAnims();
+                            symbolAnchor.transform.Find(MainConfig.SYMBOL_OBJECT).GetComponent<CascadeSymbol>().StopAllAnims();
 
-                            string symbolName = display[currentColIdx][currentRowIdx];
-                            int id = MainConfig.SYMBOL_TYPE_MAPPING[symbolName];
-                            symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().ChangeToID(id);
-
+                            ChangeSymbolTexture(symbolAnchor, GetIDFromDisplay(display, currentColIdx, currentRowIdx));
+                            
                             subSeq.AppendInterval(animDur);
                             subSeq.AppendCallback(() => {
-                                symbolAnchor.transform.position = getIdleWorldPos(currentColIdx, currentRowIdx) + new Vector3(0, 0, -15);
+                                symbolAnchor.transform.position = GetDropPointPos(currentColIdx, currentRowIdx);
                             });
                         }
                         
-
                         // then in should tween down to resting pos
-                        Tween subTweenLand = symbolAnchor.transform.DOMove(getIdleWorldPos(currentColIdx, currentRowIdx), animDur).SetEase(Ease.InOutSine);
-
-                        // subSeq.Join(subTweenLand);
+                        Tween subTweenLand = symbolAnchor.transform.DOMove(GetIdleWorldPos(currentColIdx, currentRowIdx), animDur).SetEase(Ease.InOutSine);
                         subSeq.Append(subTweenLand);
 
-                        moveSeq.Join(subSeq);
+                        settingSeq.Join(subSeq);
                     }
                 }
             }
@@ -258,181 +233,222 @@ public class MainController : MonoBehaviour
                 // we're cascading wahoo
                 Sequence cascadeSubSeq = DOTween.Sequence();
 
-                // cascade what's left in the symbolInstanceGrid logically first and get them to move to their new positions
-                for (int col_idx = 0; col_idx < cols; col_idx++)
-                {
-                    int swap_idx_ptr = rows - 1;
-                    for (int row_idx = swap_idx_ptr; row_idx >= 0; row_idx--)
-                    {
-                        GameObject symbolAnchor = symbolInstanceGrid[col_idx, row_idx];
-                        if (symbolAnchor != null)
-                        {
-                            // not null, let's move this symbolAnchor to the last row_idx_ptr
-                            symbolInstanceGrid[col_idx, swap_idx_ptr] = symbolAnchor;
-                            if (row_idx != swap_idx_ptr)
-                            {
-                                symbolInstanceGrid[col_idx, row_idx] = null;
-                            }
-                            swap_idx_ptr--;
-                        }
-                    }
-                }
+                // cascade what's left in the symbolInstanceGrid logically first
+                CascadeSymbolInstanceGrid();
 
-                for (int col_idx = 0; col_idx < cols; col_idx++)
+                // now get them to actually cascade/fall tween to their new resting positions
+                for (int colIdx = 0; colIdx < cols; colIdx++)
                 {
-                    for (int row_idx = 0; row_idx < rows; row_idx++)
+                    for (int rowIdx = 0; rowIdx < rows; rowIdx++)
                     {
-                        int currentColIdx = col_idx;
-                        int currentRowIdx = row_idx;
+                        int currentColIdx = colIdx, currentRowIdx = rowIdx;
                         GameObject symbolAnchor = symbolInstanceGrid[currentColIdx, currentRowIdx];
                         if (symbolAnchor != null)
                         {
-                            Tween subTweenFall = symbolAnchor.transform.DOMove(getIdleWorldPos(currentColIdx, currentRowIdx), animDur).SetEase(Ease.InOutSine);
+                            Tween subTweenFall = symbolAnchor.transform.DOMove(GetIdleWorldPos(currentColIdx, currentRowIdx), animDur).SetEase(Ease.InOutSine);
                             cascadeSubSeq.Join(subTweenFall);
                         }
                     }
                 }
 
-                moveSeq.Append(cascadeSubSeq);
+                settingSeq.Append(cascadeSubSeq);
 
                 // then add new instances in whilst also dropping them down from the drop point to resting positions
                 Sequence cascadeFillSubSeq = DOTween.Sequence();
 
-                for (int col_idx = 0; col_idx < cols; col_idx++)
+                for (int colIdx = 0; colIdx < cols; colIdx++)
                 {
-                    for (int row_idx = 0; row_idx < rows; row_idx++)
+                    for (int rowIdx = 0; rowIdx < rows; rowIdx++)
                     {
-                        if (symbolInstanceGrid[col_idx, row_idx] == null)
+                        if (symbolInstanceGrid[colIdx, rowIdx] == null)
                         {
-                            int currentColIdx = col_idx;
-                            int currentRowIdx = row_idx;
+                            int currentColIdx = colIdx, currentRowIdx = rowIdx;
 
-                            // instantiate it at drop point
+                            // instantiate it at drop point and set correct texture
                             GameObject symbolAnchor = Instantiate(symbolPrefab);
-                            symbolAnchor.transform.position = getIdleWorldPos(currentColIdx, currentRowIdx) + new Vector3(0, 0, -15);
+                            symbolAnchor.transform.position = GetDropPointPos(currentColIdx, currentRowIdx);
                             symbolInstanceGrid[currentColIdx, currentRowIdx] = symbolAnchor;
-                            symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().StopAllAnims();
+                            GetSymbolScript(symbolAnchor).StopAllAnims();
+                            ChangeSymbolTexture(symbolAnchor, GetIDFromDisplay(display, currentColIdx, currentRowIdx));
 
-                            string symbolName = display[currentColIdx][currentRowIdx];
-                            int id = MainConfig.SYMBOL_TYPE_MAPPING[symbolName];
-                            symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().ChangeToID(id);
-
-                            Tween subTweenLand = symbolAnchor.transform.DOMove(getIdleWorldPos(currentColIdx, currentRowIdx), animDur).SetEase(Ease.InOutSine);
+                            // drop tween to resting position
+                            Tween subTweenLand = symbolAnchor.transform.DOMove(GetIdleWorldPos(currentColIdx, currentRowIdx), animDur).SetEase(Ease.InOutSine);
                             cascadeFillSubSeq.Join(subTweenLand);
                         }
                     }
                 }
 
-                moveSeq.Append(cascadeFillSubSeq);
+                settingSeq.Append(cascadeFillSubSeq);
             }
             
-            yield return moveSeq.WaitForCompletion();
+            yield return settingSeq.WaitForCompletion();
 
-            Sequence moveSeq2 = DOTween.Sequence();
-            currentSeq = moveSeq2;
+            Sequence winSeq = DOTween.Sequence();
+            currentSeq = winSeq;
             skippable = false;
 
-            if (next_mode == "cascade")
+            if (nextMode == "cascade")
             {
-                // TODO: make a function for this
-                moveSeq2.AppendInterval(delayDur);
+                // symbols are set, pay can be derived already, so add them to ui
+                AddPay(pay);
 
-                for (int posIdx = 0; posIdx < cascade_positions.Count; posIdx++)
+                // play the wins before exploding them by animating the textures
+                winSeq.AppendInterval(delayDur);
+                for (int posIdx = 0; posIdx < cascadePositions.Count; posIdx++)
                 {
-                    List<int> pos = cascade_positions[posIdx];
-                    int colIdx = pos[0];
-                    int rowIdx = pos[1];
+                    List<int> pos = cascadePositions[posIdx];
+                    int colIdx = pos[0], rowIdx = pos[1];
                     GameObject symbolAnchor = symbolInstanceGrid[colIdx, rowIdx];
-                    symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().startTextureAnim();
+                    GetSymbolScript(symbolAnchor).StartTextureAnim();
                 }
-                moveSeq2.AppendCallback(() => {
-                    // pop the cascade positions
-                    for (int posIdx = 0; posIdx < cascade_positions.Count; posIdx++)
+
+                // after win animations pop/explode the cascade positions
+                winSeq.AppendCallback(() => {
+                    for (int posIdx = 0; posIdx < cascadePositions.Count; posIdx++)
                     {
-                        List<int> pos = cascade_positions[posIdx];
-                        int colIdx = pos[0];
-                        int rowIdx = pos[1];
+                        List<int> pos = cascadePositions[posIdx];
+                        int colIdx = pos[0], rowIdx = pos[1];
 
                         GameObject symbolAnchor = symbolInstanceGrid[colIdx, rowIdx];
-                        symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().PlayExplosion();
-                        
-                        symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().moveBack();
-                        symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().stopTextureAnim();
+                        GetSymbolScript(symbolAnchor).PlayExplosion();
+                        GetSymbolScript(symbolAnchor).HideFromView();
+                        GetSymbolScript(symbolAnchor).StopTextureAnim();
                     }
                 });
-                moveSeq2.AppendInterval(explosionDur);
-                moveSeq2.AppendCallback(() => {
+
+                // wait for the explosion to play
+                winSeq.AppendInterval(explosionDur);
+
+                // then delete the cascade positions
+                winSeq.AppendCallback(() => {
                     // delete cascade positions, inefficient o well
-                    for (int posIdx = 0; posIdx < cascade_positions.Count; posIdx++)
+                    for (int posIdx = 0; posIdx < cascadePositions.Count; posIdx++)
                     {
-                        List<int> pos = cascade_positions[posIdx];
-                        int colIdx = pos[0];
-                        int rowIdx = pos[1];
+                        List<int> pos = cascadePositions[posIdx];
+                        int colIdx = pos[0], rowIdx = pos[1];
                         GameObject symbolAnchor = symbolInstanceGrid[colIdx, rowIdx];
 
-                        symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().StopExplosion();
-
+                        GetSymbolScript(symbolAnchor).StopExplosion();
                         Destroy(symbolAnchor);
                     }
                 });
-
                 
             }
             else
             {
                 // play scatter wins if there are any
-                moveSeq2.AppendInterval(delayDur);
-                
-                for (int posIdx = 0; posIdx < scatter_win_positions.Count; posIdx++)
+                winSeq.AppendInterval(delayDur);
+                for (int posIdx = 0; posIdx < scatterWinPositions.Count; posIdx++)
                 {
-                    List<int> pos = scatter_win_positions[posIdx];
-                    int colIdx = pos[0];
-                    int rowIdx = pos[1];
+                    List<int> pos = scatterWinPositions[posIdx];
+                    int colIdx = pos[0], rowIdx = pos[1];
                     GameObject symbolAnchor = symbolInstanceGrid[colIdx, rowIdx];
-                    symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().startTextureAnim();
-                }
-                moveSeq2.AppendCallback(() => {
-                    // pop the cascade positions
-                    for (int posIdx = 0; posIdx < cascade_positions.Count; posIdx++)
-                    {
-                        List<int> pos = cascade_positions[posIdx];
-                        int colIdx = pos[0];
-                        int rowIdx = pos[1];
-                        GameObject symbolAnchor = symbolInstanceGrid[colIdx, rowIdx];
-                        symbolAnchor.transform.Find("SymbolObject").GetComponent<GenericSymbol>().stopTextureAnim();
-                    }
-                });
+                    GetSymbolScript(symbolAnchor).StartTextureAnim();
 
+                    winSeq.AppendCallback(() => {
+                        symbolAnchor.transform.Find(MainConfig.SYMBOL_OBJECT).GetComponent<CascadeSymbol>().StopTextureAnim();
+                    });
+                }
             }
 
-            yield return moveSeq2.WaitForCompletion();
+            yield return winSeq.WaitForCompletion();
 
             // have to add a delay here because tween libraries don't like destructions in coroutines
             yield return new WaitForSeconds(0.1f);
         }
 
+        inPlay = false;
+
         yield return null;
     }
 
-    /// <summary>
-    /// Gets the idle world pos for a given col and row.
-    /// </summary>
-    /// <param name="col_idx"></param>
-    /// <param name="row_idx"></param>
-    /// <returns></returns>
-    public Vector3 getIdleWorldPos(int col_idx, int row_idx)
+    // Gets the idle world pos/static position for a given col and row idxs.
+    public Vector3 GetIdleWorldPos(int colIdx, int rowIdx)
     {
         // -1 to flip the y axis as unity is y up, could also flip camera
-        return new Vector3((col_idx - XOffset) * gridSpacing, (row_idx - YOffset) * gridSpacing * -1, gridZ);
+        return new Vector3((colIdx - XOffset) * gridSpacing, (rowIdx - YOffset) * gridSpacing * -1, gridZ);
+    }
+
+    // Where new symbols are supposed to be instantiated at above the grid
+    public Vector3 GetDropPointPos(int colIdx, int rowIdx)
+    {
+        return GetIdleWorldPos(colIdx, rowIdx) + new Vector3(0, 0, -15);
+    }
+
+    // Where symbols are supposed to land at after "sinking" behind the background
+    public Vector3 GetMoveBackPos(int colIdx, int rowIdx)
+    {
+        return GetIdleWorldPos(colIdx, rowIdx) + new Vector3(0, 0, 10);
     }
 
     // Skips the current sequence if possible.
-    public void skipSequence()
+    public void SkipSequence()
     {
-        if (skippable == true)
+        if (skippable == true) currentSeq.Complete();
+    }
+
+    // Adds pay and syncs it to the UI
+    private void AddPay(int amount)
+    {
+        curPay += (amount * curBet);
+        curGamePay.text = MainConfig.CUR_PAY_STR + curPay.ToString();
+    }
+
+    private void ResetPay()
+    {
+        curPay = 0;
+        curGamePay.text = MainConfig.CUR_PAY_STR + curPay.ToString();;
+    }
+
+    // Gets the symbol id from the display given in the response
+    public int GetIDFromDisplay(List<List<string>> display, int colIdx, int rowIdx)
+    {
+        string symbolName = display[colIdx][rowIdx];
+        int id = MainConfig.SYMBOL_TYPE_MAPPING[symbolName];
+        return id;
+    }
+
+    public CascadeSymbol GetSymbolScript(GameObject symbolAnchor)
+    {
+        return symbolAnchor.transform.Find(MainConfig.SYMBOL_OBJECT).GetComponent<CascadeSymbol>();
+    }
+
+    public void ChangeSymbolTexture(GameObject symbolAnchor, int id)
+    {
+        CascadeSymbol cascadeSymbolScript = GetSymbolScript(symbolAnchor);
+        cascadeSymbolScript.SetTextureID(id);
+    }
+
+    // logically cascades symbol instance grid e.g.
+    // SymbolInstanceGrid[0] = [null, something1, null, something2, null]
+    // it'd become [null, null, null, something1, something2]
+    // repeat for rest of cols
+    public void CascadeSymbolInstanceGrid()
+    {
+        for (int colIdx = 0; colIdx < cols; colIdx++)
         {
-            currentSeq.Complete();
+            int swapIdxPtr = rows - 1;
+            for (int rowIdx = swapIdxPtr; rowIdx >= 0; rowIdx--)
+            {
+                GameObject symbolAnchor = symbolInstanceGrid[colIdx, rowIdx];
+                if (symbolAnchor != null)
+                {
+                    // not null, let's move this symbolAnchor to the last row_idx_ptr
+                    symbolInstanceGrid[colIdx, swapIdxPtr] = symbolAnchor;
+                    if (rowIdx != swapIdxPtr)
+                    {
+                        symbolInstanceGrid[colIdx, rowIdx] = null;
+                    }
+                    swapIdxPtr--;
+                }
+            }
         }
+    }
+
+    // Syncs bet to the UI from bet controller
+    public void SyncBet(int bet)
+    {
+        curBet = bet;
     }
 
 }
